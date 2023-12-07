@@ -1,0 +1,12 @@
+cmake_minimum_required(VERSION 3.16.3)
+project(test_code)
+enable_testing()
+find_package(GTest REQUIRED)
+find_package(Protobuf REQUIRED)
+include_directories(${GTEST_INCLUDE_DIRS})
+include_directories(${Protobuf_INCLUDE_DIRS})
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS file.proto)
+add_executable(test_code main.cpp  ${PROTO_SRCS} ${PROTO_HDRS})
+
+target_link_libraries(test_code protobuf::libprotobuf ${GTEST_LIBRARIES} pthread)
