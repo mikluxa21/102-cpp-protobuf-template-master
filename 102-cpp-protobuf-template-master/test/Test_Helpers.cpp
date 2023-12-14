@@ -113,7 +113,6 @@ TEST(ParseDelimited, WrongMessageSizeTest)
                 buffer->size() / 2,
                 &bytesConsumed
               );
-
   ASSERT_TRUE(delimited == nullptr);
   EXPECT_EQ(bytesConsumed, 0);
 }

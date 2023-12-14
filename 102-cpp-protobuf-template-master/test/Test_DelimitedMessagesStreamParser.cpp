@@ -3,56 +3,321 @@
 #include <gtest/gtest.h>
 
 
-typedef TestTask::Messages::WrapperMessage WrapperMessage;
-typedef ::TestTask::Messages::FastResponse FastResponse;
-typedef ::TestTask::Messages::SlowResponse SlowResponse;
-typedef ::TestTask::Messages::RequestForFastResponse RequestForFastResponse;
-typedef ::TestTask::Messages::RequestForSlowResponse RequestForSlowResponse;
-
-WrapperMessage createFastResponse(const std::string date_time)
+TEST(Parser, OneFastRequest)
 {
-	FastResponse *fastResponse = new FastResponse();
-	fastResponse->set_current_date_time(date_time);
-	WrapperMessage wrapperMessage;
-	wrapperMessage.set_allocated_fast_response(fastResponse);
-	return wrapperMessage;
+  std::list<typename DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage>::PointerToConstValue> messages;
+  DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage> parser;
+
+  TestTask::Messages::WrapperMessage message;
+  message.mutable_request_for_fast_response();
+
+  auto data = serializeDelimited(message);
+  messages = parser.parse(std::string(data->begin(), data->end()));
+  ASSERT_EQ(1, messages.size());
+
+  auto item = messages.front();
+  ASSERT_TRUE(item->has_request_for_fast_response());
 }
 
-WrapperMessage createSlowResponse(int client_count)
+TEST(Parser, SomeFastRequests)
 {
-	SlowResponse *slowResponse = new SlowResponse();
-	slowResponse->set_connected_client_count(client_count);
-	WrapperMessage wrapperMessage;
-	wrapperMessage.set_allocated_slow_response(slowResponse);
-	return wrapperMessage;
+  std::list<typename DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage>::PointerToConstValue> messages;
+  DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage> parser;
+
+  TestTask::Messages::WrapperMessage message;
+  message.mutable_request_for_fast_response();
+
+  auto data = serializeDelimited(message);
+
+  size_t count = 5;
+  std::string stream;
+  for (int i = 0; i < count; ++i)
+    stream.append(std::string(data->begin(), data->end()));
+
+  messages = parser.parse(stream);
+  ASSERT_EQ(count, messages.size());
+
+  for (auto &item : messages)
+    ASSERT_TRUE(item->has_request_for_fast_response());
 }
 
-WrapperMessage createRequestForFastResponse()
+TEST(Parser, OneSlowRequest)
 {
-	RequestForFastResponse *requestForFastResponse = new RequestForFastResponse();
-	WrapperMessage wrapperMessage;
-	wrapperMessage.set_allocated_request_for_fast_response(requestForFastResponse);
-	return wrapperMessage;
+  std::list<typename DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage>::PointerToConstValue> messages;
+  DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage> parser;
+
+  TestTask::Messages::WrapperMessage message;
+  message.mutable_request_for_slow_response()->set_time_in_seconds_to_sleep(0);
+
+  auto data = serializeDelimited(message);
+  messages = parser.parse(std::string(data->begin(), data->end()));
+  ASSERT_EQ(1, messages.size());
+
+  auto item = messages.front();
+  ASSERT_TRUE(item->has_request_for_slow_response());
+  EXPECT_EQ(
+    item->request_for_slow_response().time_in_seconds_to_sleep(),
+    message.request_for_slow_response().time_in_seconds_to_sleep()
+  );
 }
 
-WrapperMessage createRequestForSlowResponse(int seconds)
+TEST(Parser, SomeSlowRequests)
 {
-	RequestForSlowResponse *requestForSlowResponse = new RequestForSlowResponse();
-	requestForSlowResponse->set_time_in_seconds_to_sleep(seconds);
-	WrapperMessage wrapperMessage;
-	wrapperMessage.set_allocated_request_for_slow_response(requestForSlowResponse);
-	return wrapperMessage;
+  std::list<typename DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage>::PointerToConstValue> messages;
+  DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage> parser;
+
+  TestTask::Messages::WrapperMessage message;
+  message.mutable_request_for_slow_response()->set_time_in_seconds_to_sleep(0);
+
+  auto data = serializeDelimited(message);
+
+  size_t count = 5;
+  std::string stream;
+  for (int i = 0; i < count; ++i)
+    stream.append(std::string(data->begin(), data->end()));
+
+  messages = parser.parse(stream);
+  ASSERT_EQ(count, messages.size());
+
+  for (auto &item : messages)
+  {
+    ASSERT_TRUE(item->has_request_for_slow_response());
+    EXPECT_EQ(
+      item->request_for_slow_response().time_in_seconds_to_sleep(),
+      message.request_for_slow_response().time_in_seconds_to_sleep()
+    );
+  }
 }
 
-TEST(FastResponse, Deserialize)
+TEST(Parser, SomeRequests)
 {
-	size_t *l;
-	size_t len = 18;
-	PointerToConstData pointerToConstData(serializeDelimited(createFastResponse("19581005T05017.333")));
-	DelimitedMessagesStreamParser<WrapperMessage> parser;
-	std::list<std::shared_ptr<const WrapperMessage>> res = parser.parse(std::string(pointerToConstData->begin(), pointerToConstData->end()));
-	auto d = std::make_shared<WrapperMessage> (res.pop_back());
-	ASSERT_TRUE(false);
+  std::list<typename DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage>::PointerToConstValue> messages;
+  DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage> parser;
+
+  TestTask::Messages::WrapperMessage fastRequest;
+  fastRequest.mutable_request_for_fast_response();
+
+  TestTask::Messages::WrapperMessage slowRequest;
+  slowRequest.mutable_request_for_slow_response()->set_time_in_seconds_to_sleep(0);
+
+  auto fReqData = serializeDelimited(fastRequest);
+  auto sReqData = serializeDelimited(slowRequest);
+
+  size_t count = 5;
+  std::string stream;
+  for (int i = 0; i < count; ++i)
+    stream.append(std::rand() % 2 > 0 ? std::string(fReqData->begin(), fReqData->end()) : std::string(sReqData->begin(), sReqData->end()));
+
+  messages = parser.parse(stream);
+  ASSERT_EQ(count, messages.size());
+
+  for (auto &item : messages)
+  {
+    ASSERT_TRUE(item->has_request_for_fast_response() || item->has_request_for_slow_response());
+    if (item->has_request_for_slow_response())
+    {
+      EXPECT_EQ(
+        item->request_for_slow_response().time_in_seconds_to_sleep(),
+        slowRequest.request_for_slow_response().time_in_seconds_to_sleep()
+      );
+    }
+  }
+}
+
+TEST(Parser, OneFastResponse)
+{
+  std::list<typename DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage>::PointerToConstValue> messages;
+  DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage> parser;
+
+  TestTask::Messages::WrapperMessage message;
+  message.mutable_fast_response()->set_current_date_time("");
+
+  auto data = serializeDelimited(message);
+  messages = parser.parse(std::string(data->begin(), data->end()));
+  ASSERT_EQ(1, messages.size());
+
+  auto item = messages.front();
+  ASSERT_TRUE(item->has_fast_response());
+  EXPECT_EQ(
+    item->fast_response().current_date_time(),
+    message.fast_response().current_date_time()
+  );
+}
+
+TEST(Parser, SomeFastResponses)
+{
+  std::list<typename DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage>::PointerToConstValue> messages;
+  DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage> parser;
+
+  TestTask::Messages::WrapperMessage message;
+  message.mutable_fast_response()->set_current_date_time("");
+
+  auto data = serializeDelimited(message);
+
+  size_t count = 5;
+  std::string stream;
+  for (int i = 0; i < count; ++i)
+    stream.append(std::string(data->begin(), data->end()));
+
+  messages = parser.parse(stream);
+  ASSERT_EQ(count, messages.size());
+
+  for (auto &item : messages)
+  {
+    ASSERT_TRUE(item->has_fast_response());
+    EXPECT_EQ(
+      item->fast_response().current_date_time(),
+      message.fast_response().current_date_time()
+    );
+  }
+}
+
+TEST(Parser, OneSlowResponse)
+{
+  std::list<typename DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage>::PointerToConstValue> messages;
+  DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage> parser;
+
+  TestTask::Messages::WrapperMessage message;
+  message.mutable_slow_response()->set_connected_client_count(0);
+
+  auto data = serializeDelimited(message);
+  messages = parser.parse(std::string(data->begin(), data->end()));
+  ASSERT_EQ(1, messages.size());
+
+  auto item = messages.front();
+  ASSERT_TRUE(item->has_slow_response());
+  EXPECT_EQ(
+    item->slow_response().connected_client_count(),
+    message.slow_response().connected_client_count()
+  );
+}
+
+TEST(Parser, SomeSlowResponses)
+{
+  std::list<typename DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage>::PointerToConstValue> messages;
+  DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage> parser;
+
+  TestTask::Messages::WrapperMessage message;
+  message.mutable_slow_response()->set_connected_client_count(0);
+
+  auto data = serializeDelimited(message);
+
+  size_t count = 5;
+  std::string stream;
+  for (int i = 0; i < count; ++i)
+    stream.append(std::string(data->begin(), data->end()));
+
+  messages = parser.parse(stream);
+  ASSERT_EQ(count, messages.size());
+
+  for (auto &item : messages)
+  {
+    ASSERT_TRUE(item->has_slow_response());
+    EXPECT_EQ(
+      item->slow_response().connected_client_count(),
+      message.slow_response().connected_client_count()
+    );
+  }
+}
+
+TEST(Parser, SomeResponses)
+{
+  std::list<typename DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage>::PointerToConstValue> messages;
+  DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage> parser;
+
+  TestTask::Messages::WrapperMessage fastResponse;
+  fastResponse.mutable_fast_response()->set_current_date_time("");
+
+  TestTask::Messages::WrapperMessage slowResponse;
+  slowResponse.mutable_slow_response()->set_connected_client_count(0);
+
+  auto fResData = serializeDelimited(fastResponse);
+  auto sResData = serializeDelimited(slowResponse);
+
+  size_t count = 5;
+  std::string stream;
+  for (int i = 0; i < (count + 1) / 2; ++i)
+    stream.append(std::string(fResData->begin(), fResData->end()));
+
+  for (int i = 0; i < count / 2; ++i)
+    stream.append(std::string(sResData->begin(), sResData->end()));
+
+  messages = parser.parse(stream);
+  ASSERT_EQ(count, messages.size());
+
+  for (auto &item : messages)
+  {
+    ASSERT_TRUE(item->has_fast_response() || item->has_slow_response());
+    if (item->has_fast_response())
+    {
+      EXPECT_EQ(
+        item->fast_response().current_date_time(),
+        fastResponse.fast_response().current_date_time()
+      );
+    }
+    else
+    {
+      EXPECT_EQ(
+        item->slow_response().connected_client_count(),
+        slowResponse.slow_response().connected_client_count()
+      );
+    }
+  }
+}
+
+TEST(Parser, EmptyData)
+{
+  std::list<typename DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage>::PointerToConstValue> messages;
+  DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage> parser;
+
+  messages = parser.parse("");
+  EXPECT_EQ(0, messages.size());
+}
+
+TEST(Parser, SlicedData)
+{
+  std::list<typename DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage>::PointerToConstValue> messages;
+  DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage> parser;
+
+  TestTask::Messages::WrapperMessage message;
+  message.mutable_request_for_fast_response();
+
+  auto data = serializeDelimited(message);
+  size_t middle = data->size() / 2;
+
+  messages = parser.parse(std::string(data->begin(), data->begin() + middle));
+  EXPECT_EQ(messages.size(), 0);
+
+  messages = parser.parse(std::string(data->begin() + middle, data->end()));
+  EXPECT_EQ(messages.size(), 1);
+
+  auto item = messages.front();
+  ASSERT_TRUE(item->has_request_for_fast_response());
+}
+
+TEST(Parser, WrongData)
+{
+  DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage> parser;
+  EXPECT_THROW(parser.parse("\x05wrong"), std::runtime_error);
+}
+
+TEST(Parser, CorruptedData)
+{
+  std::list<typename DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage>::PointerToConstValue> messages;
+  DelimitedMessagesStreamParser<TestTask::Messages::WrapperMessage> parser;
+
+  TestTask::Messages::WrapperMessage message;
+  message.mutable_fast_response()->set_current_date_time("0");
+
+  auto data = serializeDelimited(message);
+
+  size_t count = 3;
+  std::string stream;
+  for (int i = 0; i < count; ++i)
+    stream.append(std::string(data->begin(), data->end()));
+
+  stream[data->size()] = '\x03';
+  EXPECT_THROW(parser.parse(stream), std::runtime_error);
 }
 
 

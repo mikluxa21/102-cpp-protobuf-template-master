@@ -31,18 +31,19 @@ PointerToConstData serializeDelimited(const Message& msg)
 template <class Message>
 std::shared_ptr<Message> parseDelimited(const void* data, size_t size, size_t* bytesConsumed = 0)
 {
-	const std::vector<char> *buffer = static_cast<const std::vector<char>*> (data);
+	if(bytesConsumed == nullptr)
+		throw std::runtime_error("Don't get bytesConsumed");
+	std::vector<char> b((const char*) data, (const char*) data + size);
 	Message *resMessage = new Message();
 	for(size_t i = 0; i < size; i++)
-	{
-		if((*buffer)[i] <= size - i)
-			if(resMessage->ParseFromString(std::string(buffer->begin() + i + 1, buffer->end())))
+		for(size_t j = size; j > i + 1; j--)
+			if(resMessage->ParseFromString(std::string(b.begin() + (i+1), b.begin() + j)))
 			{
-				*bytesConsumed = size - i;
+				*bytesConsumed = j - i;
 				return std::make_shared<Message> (*resMessage);
-		}
-	}
-	return NULL;
+			}
+	delete resMessage;
+	return nullptr;
 }
 
 
