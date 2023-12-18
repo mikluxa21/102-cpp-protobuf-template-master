@@ -315,7 +315,7 @@ TEST(Parser, CorruptedData)
   std::string stream;
   for (int i = 0; i < count; ++i)
     stream.append(std::string(data->begin(), data->end()));
-
+  
   stream[data->size()] = '\x03';
   EXPECT_THROW(parser.parse(stream), std::runtime_error);
 }
