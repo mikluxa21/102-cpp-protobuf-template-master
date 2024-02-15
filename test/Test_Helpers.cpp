@@ -1,8 +1,7 @@
-#include <protobuf/message.pb.h>
 #include <protobuf_parser/helpers.hpp>
-#include <message.pb.h>
-
+#include <protobuf/message.pb.h>
 #include <gtest/gtest.h>
+#include <string>
 
 TEST(ParseDelimited, DefaultTest)
 {
@@ -114,7 +113,6 @@ TEST(ParseDelimited, WrongMessageSizeTest)
                 buffer->size() / 2,
                 &bytesConsumed
               );
-
   ASSERT_TRUE(delimited == nullptr);
   EXPECT_EQ(bytesConsumed, 0);
 }
