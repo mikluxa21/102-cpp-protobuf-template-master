@@ -31,19 +31,25 @@ PointerToConstData serializeDelimited(const Message& msg)
 template <class Message>
 std::shared_ptr<Message> parseDelimited(const void* data, size_t size, size_t* bytesConsumed = 0)
 {
-	if(bytesConsumed == nullptr)
-		throw std::runtime_error("Don't get bytesConsumed");
-	std::vector<char> b((const char*) data, (const char*) data + size);
-	Message *resMessage = new Message();
-	for(size_t i = 0; i < size; i++)
-		for(size_t j = size; j > i + 1; j--)
-			if(resMessage->ParseFromString(std::string(b.begin() + (i+1), b.begin() + j)))
-			{
-				*bytesConsumed = j - i;
-				return std::make_shared<Message> (*resMessage);
-			}
-	delete resMessage;
-	return nullptr;
+  if(data == nullptr ||  size == 0)
+    return nullptr;
+  google::protobuf::io::ArrayInputStream arrayInput(reinterpret_cast<const char*> (data), size);
+  google::protobuf::io::CodedInputStream codedInput(&arrayInput);
+
+  google::protobuf::uint32 messageSize;
+  if(!codedInput.ReadVarint32(&messageSize))
+    throw std::runtime_error("ReadVarint32 faild");
+  if((codedInput.CurrentPosition() + messageSize) > size)
+    return nullptr;
+  auto limit = codedInput.PushLimit(messageSize);
+
+  Message msg;
+  if(!msg.ParseFromCodedStream(&codedInput))
+    throw std::runtime_error("ParseFromeCodedStream faild");
+  codedInput.PopLimit(limit);
+
+  *bytesConsumed = codedInput.CurrentPosition();
+  return std::make_shared<Message> (msg);
 }
 
 
